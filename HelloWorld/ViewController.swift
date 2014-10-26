@@ -8,15 +8,13 @@
 
 import UIKit
 
-
-
 class ViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
     @IBOutlet var appsTableView : UITableView?
     var tableData = []
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        searchItunesFor("Beatles")
+        getIndex()
     }
 
     override func didReceiveMemoryWarning() {
@@ -30,53 +28,38 @@ class ViewController: UIViewController, UITableViewDataSource, UITableViewDelega
     
     func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
         let cell: UITableViewCell = UITableViewCell(style: UITableViewCellStyle.Subtitle, reuseIdentifier: "MyTestCell")
-        
         let rowData: NSDictionary = self.tableData[indexPath.row] as NSDictionary
         
-        cell.textLabel.text = rowData["trackName"] as? String
-        
-        // Grab the artworkUrl60 key to get an image URL for the app's thumbnail
-        let urlString: NSString = rowData["artworkUrl60"] as NSString
-        let imgURL: NSURL = NSURL(string: urlString)!
-        
-        // Download an NSData representation of the image at the URL
-        let imgData: NSData = NSData(contentsOfURL: imgURL)!
-        cell.imageView.image = UIImage(data: imgData)
-        
-        // Get the formatted price string for display in the subtitle
-        let formattedPrice: NSString = rowData["formattedPrice"] as NSString
-        
-        cell.detailTextLabel?.text = formattedPrice
+        cell.textLabel.text = rowData["name"] as? String
+        cell.imageView.image = UIImage(data: imageFromRow(rowData))
         
         return cell
     }
     
-    func searchItunesFor(searchTerm: String) {
-        let url: NSURL = NSURL(string: "http://itunes.apple.com/search?term=\(searchTerm)&media=software")!
+    func imageFromRow(rowData: NSDictionary) -> NSData{
+        let images = rowData["images"] as NSArray
+        let image = images[0] as NSDictionary
+        let urlString = image["url"] as NSString
+        let imgURL: NSURL = NSURL(string: urlString)!
+        return NSData(contentsOfURL: imgURL)!
+    }
+    
+    func getIndex() {
+        let url: NSURL = NSURL(string: "http://www.tanga.com/deals/front-page.json")!
 
         NSURLSession.sharedSession().dataTaskWithURL(url, completionHandler: {data, response, error -> Void in
             if(error != nil) { println(error.localizedDescription) }
-            self.didReceiveAPIResults(self.parse(data))
+            
+            dispatch_async(dispatch_get_main_queue(), {
+                self.tableData = self.parse(data)
+                self.appsTableView!.reloadData()
+            })
+
         }).resume()
     }
     
-    func parse(data: NSData) -> NSDictionary {
-        var err: NSError?
-        
-        var jsonResult = NSJSONSerialization.JSONObjectWithData(data, options: NSJSONReadingOptions.MutableContainers, error: &err) as NSDictionary
-        if(err != nil) {
-            // If there is an error parsing JSON, print it to the console
-            println("JSON Error \(err!.localizedDescription)")
-        }
-        return jsonResult
-    }
-    
-    func didReceiveAPIResults(results: NSDictionary) {
-        var resultsArr: NSArray = results["results"] as NSArray
-        dispatch_async(dispatch_get_main_queue(), {
-            self.tableData = resultsArr
-            self.appsTableView!.reloadData()
-        })
+    func parse(data: NSData) -> NSArray {
+        return JSON(data: data).object as NSArray
     }
 }
 
